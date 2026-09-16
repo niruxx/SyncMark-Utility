@@ -6,7 +6,7 @@ class ApiClient;
 class QLineEdit;
 class QLabel;
 class QCheckBox;
-class QDialogButtonBox;
+class QPushButton;
 
 // Logs in against an already-connected server (POST /api/auth/login).
 // Only accept()s once the server confirms the session; stays open on error.
@@ -26,6 +26,7 @@ private:
     QLineEdit *m_password;
     QCheckBox *m_remember;
     QLabel *m_statusLabel;
-    QDialogButtonBox *m_buttons;
+    QPushButton *m_loginButton;
+    QPushButton *m_cancelButton;
     QString m_role;
 };

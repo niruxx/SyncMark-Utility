@@ -34,6 +34,7 @@ private slots:
     void renameSelected();
     void deleteSelected();
     void openTrash();
+    void openPermissions();
     void onContextMenu(const QPoint &pos);
 
 private:

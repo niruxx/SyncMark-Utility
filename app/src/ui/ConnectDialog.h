@@ -3,9 +3,8 @@
 #include <QDialog>
 
 class QComboBox;
-class QLineEdit;
 class QLabel;
-class QDialogButtonBox;
+class QPushButton;
 
 // First screen: asks for the SyncMark server's base URL, e.g. http://localhost:3000
 class ConnectDialog : public QDialog {
@@ -20,5 +19,6 @@ public:
 private:
     QComboBox *m_urlCombo;
     QLabel *m_statusLabel;
-    QDialogButtonBox *m_buttons;
+    QPushButton *m_connectButton;
+    QPushButton *m_exitButton;
 };

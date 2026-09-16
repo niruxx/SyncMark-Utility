@@ -1,6 +1,7 @@
 #include "FilesPage.h"
 #include "FileLocationDialog.h"
 #include "TextFileDialog.h"
+#include "PermissionsDialog.h"
 #include "../common/Notify.h"
 #include "../../core/ApiClient.h"
 #include "../../core/Session.h"
@@ -81,6 +82,9 @@ FilesPage::FilesPage(ApiClient *api, Session *session, QWidget *parent)
     m_table->setColumnCount(3);
     m_table->setHorizontalHeaderLabels({tr("Name"), tr("Size"), tr("Modified")});
     m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    m_table->verticalHeader()->setVisible(false);
+    m_table->verticalHeader()->setDefaultSectionSize(30);
+    m_table->setAlternatingRowColors(true);
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_table->setSelectionMode(QAbstractItemView::SingleSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -222,6 +226,7 @@ void FilesPage::onContextMenu(const QPoint &pos) {
     QAction *openAction = selectedRow() >= 0 ? menu.addAction(tr("Open")) : nullptr;
     QAction *downloadAction = selectedRow() >= 0 ? menu.addAction(tr("Download")) : nullptr;
     QAction *renameAction = selectedRow() >= 0 ? menu.addAction(tr("Rename...")) : nullptr;
+    QAction *permissionsAction = selectedRow() >= 0 ? menu.addAction(tr("Permissions...")) : nullptr;
     QAction *deleteAction = selectedRow() >= 0 ? menu.addAction(tr("Delete")) : nullptr;
     menu.addSeparator();
     QAction *newFolderAction = menu.addAction(tr("New Folder..."));
@@ -230,6 +235,7 @@ void FilesPage::onContextMenu(const QPoint &pos) {
     if (chosen == openAction) onRowActivated(selectedRow(), 0);
     else if (chosen == downloadAction) downloadSelected();
     else if (chosen == renameAction) renameSelected();
+    else if (chosen == permissionsAction) openPermissions();
     else if (chosen == deleteAction) deleteSelected();
     else if (chosen == newFolderAction) newFolder();
     else if (chosen == uploadAction) uploadFiles();
@@ -368,6 +374,15 @@ void FilesPage::deleteSelected() {
     });
 }
 
+void FilesPage::openPermissions() {
+    int row = selectedRow();
+    if (row < 0) return;
+    const QJsonObject entry = entryAt(row);
+    const QString fullPath = joinPath(m_currentPath, entry.value("name").toString());
+    PermissionsDialog dialog(m_api, currentLocationId(), fullPath, this);
+    dialog.exec();
+}
+
 void FilesPage::openTrash() {
     if (currentLocationId().isEmpty()) return;
     const QString locationId = currentLocationId();
@@ -381,6 +396,9 @@ void FilesPage::openTrash() {
     table->setColumnCount(3);
     table->setHorizontalHeaderLabels({tr("Name"), tr("Original Path"), tr("Deleted")});
     table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    table->verticalHeader()->setVisible(false);
+    table->verticalHeader()->setDefaultSectionSize(28);
+    table->setAlternatingRowColors(true);
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
     table->setSelectionMode(QAbstractItemView::SingleSelection);
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);

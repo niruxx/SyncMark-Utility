@@ -12,10 +12,7 @@ namespace {
 QGroupBox *makeStatTile(QWidget *parent, const QString &title, QLabel *&valueLabelOut) {
     auto *box = new QGroupBox(title, parent);
     valueLabelOut = new QLabel("-", box);
-    QFont f = valueLabelOut->font();
-    f.setPointSize(f.pointSize() + 10);
-    f.setBold(true);
-    valueLabelOut->setFont(f);
+    valueLabelOut->setObjectName("statTileValue");
     auto *layout = new QVBoxLayout(box);
     layout->addWidget(valueLabelOut);
     return box;
@@ -26,10 +23,13 @@ DashboardPage::DashboardPage(ApiClient *api, Session *session, QWidget *parent)
     : PageWidget(parent), m_api(api), m_session(session) {
     m_welcomeLabel = new QLabel(this);
     QFont f = m_welcomeLabel->font();
-    f.setPointSize(f.pointSize() + 4);
+    f.setPointSize(f.pointSize() + 5);
+    f.setBold(true);
     m_welcomeLabel->setFont(f);
+    m_welcomeLabel->setContentsMargins(0, 0, 0, 8);
 
     auto *grid = new QGridLayout;
+    grid->setSpacing(14);
     grid->addWidget(makeStatTile(this, tr("Bookmarks"), m_bookmarksStat), 0, 0);
     grid->addWidget(makeStatTile(this, tr("Folders"), m_foldersStat), 0, 1);
     grid->addWidget(makeStatTile(this, tr("Contacts"), m_contactsStat), 0, 2);
@@ -37,6 +37,7 @@ DashboardPage::DashboardPage(ApiClient *api, Session *session, QWidget *parent)
     grid->addWidget(makeStatTile(this, tr("Password Entries"), m_passwordsStat), 1, 1);
 
     auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(24, 24, 24, 24);
     layout->addWidget(m_welcomeLabel);
     layout->addLayout(grid);
     layout->addStretch();

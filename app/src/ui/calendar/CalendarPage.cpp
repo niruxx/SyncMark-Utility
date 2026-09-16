@@ -22,11 +22,13 @@
 #include <QHttpPart>
 #include <QTextCharFormat>
 #include <QBrush>
+#include <QColor>
 #include <algorithm>
 
 CalendarPage::CalendarPage(ApiClient *api, QWidget *parent) : PageWidget(parent), m_api(api) {
     m_calendar = new QCalendarWidget(this);
     connect(m_calendar, &QCalendarWidget::selectionChanged, this, &CalendarPage::applyDateFilter);
+    connect(m_calendar, &QCalendarWidget::currentPageChanged, this, [this](int, int) { highlightEventDates(); });
 
     m_search = new QLineEdit(this);
     m_search->setPlaceholderText(tr("Search events..."));
@@ -40,6 +42,9 @@ CalendarPage::CalendarPage(ApiClient *api, QWidget *parent) : PageWidget(parent)
     m_table->setColumnCount(4);
     m_table->setHorizontalHeaderLabels({tr("Title"), tr("Start"), tr("End"), tr("Location")});
     m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    m_table->verticalHeader()->setVisible(false);
+    m_table->verticalHeader()->setDefaultSectionSize(30);
+    m_table->setAlternatingRowColors(true);
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_table->setSelectionMode(QAbstractItemView::SingleSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -96,15 +101,63 @@ void CalendarPage::reloadEvents() {
     });
 }
 
+bool CalendarPage::occurrenceOnDate(const QJsonObject &event, const QDate &date, QDateTime &start, QDateTime &end) {
+    const QDateTime baseStart = QDateTime::fromString(event.value("startAt").toString(), Qt::ISODate).toLocalTime();
+    QDateTime baseEnd = QDateTime::fromString(event.value("endAt").toString(), Qt::ISODate).toLocalTime();
+    if (!baseStart.isValid()) return false;
+    if (!baseEnd.isValid()) baseEnd = baseStart;
+    const qint64 durationSecs = baseStart.secsTo(baseEnd);
+
+    const QString rrule = event.value("recurrence").toString();
+    if (rrule.isEmpty()) {
+        if (date < baseStart.date() || date > baseEnd.date()) return false;
+        start = baseStart;
+        end = baseEnd;
+        return true;
+    }
+
+    if (date < baseStart.date()) return false;
+
+    QString freq;
+    QDate until;
+    for (const QString &part : rrule.split(';')) {
+        if (part.startsWith("FREQ=")) freq = part.mid(5);
+        else if (part.startsWith("UNTIL=")) until = QDate::fromString(part.mid(6).left(8), "yyyyMMdd");
+    }
+    if (until.isValid() && date > until) return false;
+
+    bool aligned = false;
+    if (freq == "DAILY") aligned = true;
+    else if (freq == "WEEKLY") aligned = (baseStart.date().daysTo(date) % 7 == 0);
+    else if (freq == "MONTHLY") aligned = (date.day() == baseStart.date().day());
+    else aligned = (date == baseStart.date());
+
+    if (!aligned) return false;
+    start = QDateTime(date, baseStart.time());
+    end = start.addSecs(durationSecs);
+    return true;
+}
+
 void CalendarPage::highlightEventDates() {
     m_calendar->setDateTextFormat(QDate(), QTextCharFormat());
     QTextCharFormat fmt;
     fmt.setFontWeight(QFont::Bold);
-    fmt.setForeground(QBrush(Qt::darkBlue));
-    for (const QJsonObject &ev : m_allEvents) {
-        QDateTime start = QDateTime::fromString(ev.value("startAt").toString(), Qt::ISODate).toLocalTime();
-        if (start.isValid())
-            m_calendar->setDateTextFormat(start.date(), fmt);
+    fmt.setForeground(QBrush(QColor("#3a6ea5")));
+
+    const int year = m_calendar->yearShown();
+    const int month = m_calendar->monthShown();
+    const QDate firstOfMonth(year, month, 1);
+    const int daysInMonth = firstOfMonth.daysInMonth();
+
+    for (int day = 1; day <= daysInMonth; ++day) {
+        const QDate date(year, month, day);
+        QDateTime s, e;
+        for (const QJsonObject &ev : m_allEvents) {
+            if (occurrenceOnDate(ev, date, s, e)) {
+                m_calendar->setDateTextFormat(date, fmt);
+                break;
+            }
+        }
     }
 }
 
@@ -113,32 +166,28 @@ void CalendarPage::applyDateFilter() {
 }
 
 void CalendarPage::populateTableForDate(const QDate &date) {
-    QVector<QJsonObject> dayEvents;
+    QVector<Occurrence> dayEvents;
     for (const QJsonObject &ev : m_allEvents) {
-        QDateTime start = QDateTime::fromString(ev.value("startAt").toString(), Qt::ISODate).toLocalTime();
-        QDateTime end = QDateTime::fromString(ev.value("endAt").toString(), Qt::ISODate).toLocalTime();
-        if (!start.isValid()) continue;
-        if (!end.isValid()) end = start;
-        if (start.date() <= date && end.date() >= date)
-            dayEvents << ev;
+        QDateTime s, e;
+        if (occurrenceOnDate(ev, date, s, e))
+            dayEvents << Occurrence{ev, s, e};
     }
-    std::sort(dayEvents.begin(), dayEvents.end(), [](const QJsonObject &a, const QJsonObject &b) {
-        return a.value("startAt").toString() < b.value("startAt").toString();
+    std::sort(dayEvents.begin(), dayEvents.end(), [](const Occurrence &a, const Occurrence &b) {
+        return a.start < b.start;
     });
 
     m_table->setRowCount(dayEvents.size());
     for (int row = 0; row < dayEvents.size(); ++row) {
-        const QJsonObject &ev = dayEvents[row];
-        auto *item = new QTableWidgetItem(ev.value("title").toString());
-        item->setData(Qt::UserRole, ev.value("id").toVariant());
+        const Occurrence &occ = dayEvents[row];
+        const bool isRecurring = !occ.event.value("recurrence").toString().isEmpty();
+        auto *item = new QTableWidgetItem((isRecurring ? QStringLiteral("↻ ") : QString()) + occ.event.value("title").toString());
+        item->setData(Qt::UserRole, occ.event.value("id").toVariant());
         m_table->setItem(row, 0, item);
-        QDateTime start = QDateTime::fromString(ev.value("startAt").toString(), Qt::ISODate).toLocalTime();
-        QDateTime end = QDateTime::fromString(ev.value("endAt").toString(), Qt::ISODate).toLocalTime();
-        const bool allDay = ev.value("allDay").toInt() != 0 || ev.value("allDay").toBool();
+        const bool allDay = occ.event.value("allDay").toInt() != 0 || occ.event.value("allDay").toBool();
         const QString fmt = allDay ? "yyyy-MM-dd" : "yyyy-MM-dd HH:mm";
-        m_table->setItem(row, 1, new QTableWidgetItem(start.toString(fmt)));
-        m_table->setItem(row, 2, new QTableWidgetItem(end.toString(fmt)));
-        m_table->setItem(row, 3, new QTableWidgetItem(ev.value("location").toString()));
+        m_table->setItem(row, 1, new QTableWidgetItem(occ.start.toString(fmt)));
+        m_table->setItem(row, 2, new QTableWidgetItem(occ.end.toString(fmt)));
+        m_table->setItem(row, 3, new QTableWidgetItem(occ.event.value("location").toString()));
     }
 }
 

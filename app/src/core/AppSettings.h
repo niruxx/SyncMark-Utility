@@ -33,4 +33,11 @@ public:
     static void setRememberSession(bool v) {
         QSettings().setValue("server/remember", v);
     }
+
+    static bool minimizeToTrayEnabled() {
+        return QSettings().value("ui/minimizeToTray", true).toBool();
+    }
+    static void setMinimizeToTrayEnabled(bool v) {
+        QSettings().setValue("ui/minimizeToTray", v);
+    }
 };

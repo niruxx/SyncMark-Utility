@@ -6,7 +6,7 @@ class ApiClient;
 class QLineEdit;
 class QLabel;
 class QCheckBox;
-class QDialogButtonBox;
+class QPushButton;
 
 // First-run setup wizard (POST /api/auth/setup): creates the single regular
 // account plus a separate admin recovery password, and picks which modules
@@ -31,5 +31,6 @@ private:
     QCheckBox *m_files;
     QCheckBox *m_passwords;
     QLabel *m_statusLabel;
-    QDialogButtonBox *m_buttons;
+    QPushButton *m_createButton;
+    QPushButton *m_cancelButton;
 };

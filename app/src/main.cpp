@@ -10,6 +10,8 @@
 #include "ui/SetupDialog.h"
 #include "ui/LoginDialog.h"
 #include "ui/MainWindow.h"
+#include "ui/Theme.h"
+#include "ui/common/Animations.h"
 
 namespace {
 
@@ -109,6 +111,10 @@ int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     QApplication::setOrganizationName("SyncMark");
     QApplication::setApplicationName("SyncMark Desktop Client");
+
+    Theme::apply(app);
+    app.setWindowIcon(Theme::appIcon());
+    Animations::installGlobalDialogFade(&app);
 
     ApiClient api;
     Session session;

@@ -26,6 +26,22 @@ target_link_libraries(SyncMarkClient PRIVATE
 
 if (WIN32)
     set_target_properties(SyncMarkClient PROPERTIES OUTPUT_NAME "SyncMarkClient")
+
+    # Automatically copy the Qt runtime DLLs and plugins next to the exe
+    # after every build, so `SyncMarkClient.exe` is runnable directly from
+    # the build directory without a manual windeployqt step.
+    get_target_property(_qmake_executable Qt6::qmake IMPORTED_LOCATION)
+    get_filename_component(_qt_bin_dir "${_qmake_executable}" DIRECTORY)
+    find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${_qt_bin_dir}")
+
+    if (WINDEPLOYQT_EXECUTABLE)
+        add_custom_command(TARGET SyncMarkClient POST_BUILD
+            COMMAND "${WINDEPLOYQT_EXECUTABLE}" --no-translations $<TARGET_FILE:SyncMarkClient>
+            COMMENT "Deploying Qt runtime DLLs next to SyncMarkClient.exe"
+        )
+    else()
+        message(WARNING "windeployqt not found next to Qt6 - run it manually before distributing the exe")
+    endif()
 endif()
 
 install(TARGETS SyncMarkClient
